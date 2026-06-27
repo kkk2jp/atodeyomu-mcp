@@ -16,7 +16,7 @@ export interface TokenFile {
 }
 
 export class ReauthRequiredError extends Error {
-  constructor(message = "認証情報が無効です。`npm run auth` (auth/setup.ts) を再実行してください。") {
+  constructor(message = "認証情報が無効です。`npx -y atodeyomu-mcp auth` を再実行してください。") {
     super(message);
     this.name = "ReauthRequiredError";
   }
@@ -43,7 +43,7 @@ export class TwitterApiCallError extends Error {
 export function loadTokens(): TokenFile {
   if (!existsSync(TOKENS_PATH)) {
     throw new ReauthRequiredError(
-      "トークンファイルが見つかりません。`npm run auth` (auth/setup.ts) を実行してください。",
+      "トークンファイルが見つかりません。`npx -y atodeyomu-mcp auth --client-id <ClientID> --client-secret <ClientSecret>` を実行してください。",
     );
   }
   const raw = readFileSync(TOKENS_PATH, "utf-8");

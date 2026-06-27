@@ -3,13 +3,30 @@
   "version": "1.0.0",
   "description": "Read-only MCP server for fetching X (Twitter) quote-post bookmarks",
   "type": "module",
-  "private": true,
   "main": "dist/index.js",
+  "bin": {
+    "atodeyomu-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "auth": "tsx auth/setup.ts",
+    "prepare": "npm run build",
+    "auth": "node dist/index.js auth",
     "start": "node dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kkk2jp/atodeyomu-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "twitter",
+    "x",
+    "quote-tweet"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "twitter-api-v2": "^1.29.0",
@@ -17,7 +34,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
-    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   },
   "engines": {
