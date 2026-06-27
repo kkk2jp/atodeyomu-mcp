@@ -191,7 +191,7 @@ sequenceDiagram
     S-->>U: 完了。サーバーを閉じて終了
 ```
 
-要求するスコープは **`tweet.read` `users.read` `offline.access` の 3 つだけ** です。`offline.access` があるおかげで refresh token が得られ、以降は無人で更新できます。`bookmark.read` は使いません。
+要求するスコープは **`tweet.read` `users.read` `offline.access` の 3 つだけ** です。`offline.access` があるおかげで refresh token が得られ、以降は無人で更新できます。
 
 ### refresh token のローテーションに注意
 

@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { createServer } from "node:http";
 import { TwitterApi } from "twitter-api-v2";
 import { saveTokens } from "../src/twitter-client.js";
@@ -11,7 +10,9 @@ async function main() {
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    console.error("CLIENT_ID / CLIENT_SECRET が .env に設定されていません。.env.example を参考に .env を作成してください。");
+    console.error(
+      "環境変数 CLIENT_ID / CLIENT_SECRET が設定されていません。次のように渡して再実行してください:\n  CLIENT_ID=xxx CLIENT_SECRET=yyy npm run auth",
+    );
     process.exit(1);
   }
 

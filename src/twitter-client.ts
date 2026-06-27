@@ -59,7 +59,9 @@ function getCredentials(): { clientId: string; clientSecret: string } {
   const clientId = process.env.CLIENT_ID;
   const clientSecret = process.env.CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    throw new Error("CLIENT_ID / CLIENT_SECRET が .env に設定されていません。");
+    throw new Error(
+      "環境変数 CLIENT_ID / CLIENT_SECRET が設定されていません。`~/.mcp.json` の env で渡してください。",
+    );
   }
   return { clientId, clientSecret };
 }

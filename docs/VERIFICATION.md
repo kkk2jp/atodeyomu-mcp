@@ -23,15 +23,16 @@
 ```bash
 cd <absolute-path-to-atodeyomu-mcp>
 npm install
-cp .env.example .env
 ```
 
-`.env` に控えた `CLIENT_ID` / `CLIENT_SECRET` を書き込む。
+`CLIENT_ID` / `CLIENT_SECRET` は環境変数として渡す（サーバー起動時は §5 の `~/.mcp.json` の `env`、認可時は次の §3 のインライン指定）。
 
 ## 3. 認可（初回のみ）
 
+`CLIENT_ID` / `CLIENT_SECRET` を環境変数で渡して実行する。
+
 ```bash
-npm run auth
+CLIENT_ID=<your-client-id> CLIENT_SECRET=<your-client-secret> npm run auth
 ```
 
 **確認すること:**
@@ -76,11 +77,17 @@ realpath dist/index.js
   "mcpServers": {
     "atodeyomu": {
       "command": "node",
-      "args": ["<realpath dist/index.js の出力結果>"]
+      "args": ["<realpath dist/index.js の出力結果>"],
+      "env": {
+        "CLIENT_ID": "<your-client-id>",
+        "CLIENT_SECRET": "<your-client-secret>"
+      }
     }
   }
 }
 ```
+
+`env` の `CLIENT_ID` / `CLIENT_SECRET` は、サーバーがアクセストークンを自動リフレッシュする際に必要。これを省くと、認可直後（アクセストークン有効期間中）は動くが、トークン期限切れ後のリフレッシュで失敗する。
 
 登録後、Claude Code (Cowork) を再起動し、MCP サーバーが接続済みであることを確認する（接続中の MCP サーバー一覧に `atodeyomu` が表示される）。
 
