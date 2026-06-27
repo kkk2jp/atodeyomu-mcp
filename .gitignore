@@ -1,6 +1,10 @@
 node_modules/
 dist/
+*.tgz
 .env
-~/.atodeyomu-mcp/
+.atodeyomu-mcp/
 *.log
 .DS_Store
+
+# ローカル専用（メンテナ個人メモ、git管理しない）
+docs/MAINTAINER.md

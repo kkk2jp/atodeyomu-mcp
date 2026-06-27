@@ -253,4 +253,4 @@ since_id     = <解決済みカーソル>   # 値がある場合のみ付与
 - `npm run build`（TypeScript → JS、`dist/` に出力）。`prepare` スクリプトで `npm install`・`npm publish`・git インストール時に自動実行される。
 - npm に公開し（`npm publish`）、利用者は `~/.mcp.json` に `command: "npx"`, `args: ["-y", "atodeyomu-mcp"]`, `env: { CLIENT_ID, CLIENT_SECRET }` で登録する。
 - 認可は `npx -y atodeyomu-mcp auth --client-id <ID> --client-secret <SECRET>` を一度だけ実行する。
-- 詳細手順は README / docs/VERIFICATION.md。
+- 利用手順は README / docs/VERIFICATION.md。
