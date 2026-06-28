@@ -4,9 +4,9 @@
 
 ## 1. 概要
 
-X (Twitter) で「あとで読む」目的の引用リツイートを検出するための、**読み取り専用**の MCP サーバー。TypeScript で実装する。個人の知識管理パイプライン（Claude Code → Notion）から、本サーバーが公開するツール `get_quoted_posts` を呼び出して使う。
+X (Twitter) で「あとで読む」目的の引用リツイートを検出するための、**読み取り専用**の MCP サーバー。TypeScript で実装する。個人の知識管理パイプライン（Claude（Cowork）→ Notion）から、本サーバーが公開するツール `get_quoted_posts` を呼び出して使う。
 
-本サーバーの責務は **「引用リツイートかどうか」という構造的判定（`referenced_tweets.type === "quoted"`）と、引用元コンテンツの取得**、および **取得位置（カーソル）のローカル管理** のみ。キーワード判定・要約・Notion への書き込みは呼び出し側（Claude Code のスキル）の責務であり、本サーバーには実装しない。
+本サーバーの責務は **「引用リツイートかどうか」という構造的判定（`referenced_tweets.type === "quoted"`）と、引用元コンテンツの取得**、および **取得位置（カーソル）のローカル管理** のみ。キーワード判定・要約・Notion への書き込みは呼び出し側（Cowork のタスク）の責務であり、本サーバーには実装しない。
 
 下流（Notion 照合・要約）のコストを抑えるため、本サーバーは前回取得位置をローカルに記録し、X API の `since_id` で **差分だけ** を返す。カーソルの前進は取得時に自動では行わず、呼び出し側が下流処理（Notion 書き込み）の成功を確認してから `commit_cursor` ツールで明示的に確定する（取りこぼし防止）。
 
@@ -108,7 +108,7 @@ atodeyomu-mcp/
 - `process.argv[2]` を見て分岐する: `auth` なら `runAuth()`（§5.1）を実行、それ以外は MCP サーバーを起動する。
 - stdio transport で MCP サーバーを起動する。
 - 起動時にトークンを読み込む。
-- `CLIENT_ID` / `CLIENT_SECRET` は環境変数（`process.env`）から読む。MCP クライアントが `~/.mcp.json` の `env` で渡す前提。
+- `CLIENT_ID` / `CLIENT_SECRET` は環境変数（`process.env`）から読む。MCP クライアント（Cowork / Claude デスクトップアプリ）が MCP 設定ファイル `claude_desktop_config.json` の `env` で渡す前提。
 - ツール `get_quoted_posts` と `commit_cursor` を登録する。
 - X API を呼ぶツール（`get_quoted_posts`）では呼び出しのたびに `ensureFreshToken()` を通す。`commit_cursor` はローカルファイル書き込みのみで X API を呼ばない。
 
@@ -219,7 +219,7 @@ since_id     = <解決済みカーソル>   # 値がある場合のみ付与
 - 保存先: `~/.atodeyomu-mcp/tokens.json`（パーミッション `600`）。
 - 保持する値の例: `access_token` / `refresh_token` / `expires_at`（絶対時刻に正規化して保存すると判定が容易）/ `scope`。
 - リフレッシュのたびに **新しい access / refresh token と有効期限で上書き** する（refresh token のローテーション対応）。
-- リフレッシュには `CLIENT_ID` / `CLIENT_SECRET` が必要。これらは環境変数（`~/.mcp.json` の `env`）から渡す。トークン自体（`tokens.json`）とは別管理。
+- リフレッシュには `CLIENT_ID` / `CLIENT_SECRET` が必要。これらは環境変数（MCP 設定ファイル `claude_desktop_config.json` の `env`）から渡す。トークン自体（`tokens.json`）とは別管理。
 - 本サーバーはローカルタスク（同一 PC 上）で繰り返し実行される前提。
 
 カーソルはトークンとは別ファイル（`~/.atodeyomu-mcp/cursor.json`、`{ "last_post_id", "updated_at" }`）で管理する。秘密情報ではないがライフサイクルが異なるためトークンと分離する。`commit_cursor` 実行時のみ上書きする。
@@ -242,15 +242,15 @@ since_id     = <解決済みカーソル>   # 値がある場合のみ付与
 
 ## 11. セキュリティ / 非機能要件
 
-- シークレット・トークンを **絶対にコミットしない**。秘密はリポジトリ外（`~/.mcp.json` の `env`、`~/.atodeyomu-mcp/tokens.json`）に置く。`.gitignore` に（保険として）`.env`・`tokens.json` 系を含める。
-- `CLIENT_ID` / `CLIENT_SECRET` は、サーバー起動時は `~/.mcp.json` の `env`（環境変数）、認可時は `--client-id` / `--client-secret` フラグ（無ければ環境変数）で渡す。
+- シークレット・トークンを **絶対にコミットしない**。秘密はリポジトリ外（MCP 設定ファイル `claude_desktop_config.json` の `env`、`~/.atodeyomu-mcp/tokens.json`）に置く。`.gitignore` に（保険として）`.env`・`tokens.json` 系を含める。
+- `CLIENT_ID` / `CLIENT_SECRET` は、サーバー起動時は MCP 設定ファイルの `env`（環境変数）、認可時は `--client-id` / `--client-secret` フラグ（無ければ環境変数）で渡す。
 - トークンファイルは `chmod 600`。
-- `~/.mcp.json` には Client ID / Secret が平文で入るため、このファイルも秘密情報として扱う。
+- MCP 設定ファイル（`claude_desktop_config.json`）には Client ID / Secret が平文で入るため、このファイルも秘密情報として扱う。
 - エラーメッセージにトークン・内部 URL を含めない。
 
 ## 12. ビルド / 配布 / 実行
 
 - `npm run build`（TypeScript → JS、`dist/` に出力）。`prepare` スクリプトで `npm install`・`npm publish`・git インストール時に自動実行される。
-- npm に公開し（`npm publish`）、利用者は `~/.mcp.json` に `command: "npx"`, `args: ["-y", "atodeyomu-mcp"]`, `env: { CLIENT_ID, CLIENT_SECRET }` で登録する。
+- npm に公開し（`npm publish`）、利用者は MCP 設定ファイル（Cowork なら `claude_desktop_config.json`）に `command: "npx"`, `args: ["-y", "atodeyomu-mcp"]`, `env: { CLIENT_ID, CLIENT_SECRET }` で登録する。
 - 認可は `npx -y atodeyomu-mcp auth --client-id <ID> --client-secret <SECRET>` を一度だけ実行する。
 - 利用手順は README / docs/VERIFICATION.md。

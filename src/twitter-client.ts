@@ -60,7 +60,7 @@ function getCredentials(): { clientId: string; clientSecret: string } {
   const clientSecret = process.env.CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     throw new Error(
-      "環境変数 CLIENT_ID / CLIENT_SECRET が設定されていません。`~/.mcp.json` の env で渡してください。",
+      "環境変数 CLIENT_ID / CLIENT_SECRET が設定されていません。MCP 設定（Cowork なら claude_desktop_config.json）の env で渡してください。",
     );
   }
   return { clientId, clientSecret };
