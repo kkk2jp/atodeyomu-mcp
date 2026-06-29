@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -7,10 +8,18 @@ import { commitCursor } from "./tools/commit-cursor.js";
 import { loadTokens } from "./twitter-client.js";
 import { runAuth } from "./auth.js";
 
+// バージョンは package.json から読む（`npm version` で1箇所更新すれば全体に反映される）。
+// dist/index.js から見て package.json はパッケージルート（../package.json）にある。
+const VERSION = (
+  JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8")) as {
+    version: string;
+  }
+).version;
+
 function buildServer(): McpServer {
   const server = new McpServer({
     name: "atodeyomu-mcp",
-    version: "1.0.0",
+    version: VERSION,
   });
 
   server.registerTool(
@@ -93,6 +102,10 @@ function parseFlag(args: string[], name: string): string | undefined {
 
 async function main(): Promise<void> {
   const command = process.argv[2];
+  if (command === "--version" || command === "-v") {
+    console.log(VERSION);
+    return;
+  }
   if (command === "auth") {
     const args = process.argv.slice(3);
     // フラグ優先、無ければ環境変数にフォールバック

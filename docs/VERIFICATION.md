@@ -57,7 +57,7 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルの `m
   "mcpServers": {
     "atodeyomu": {
       "command": "npx",
-      "args": ["-y", "atodeyomu-mcp"],
+      "args": ["-y", "atodeyomu-mcp@latest"],
       "env": {
         "CLIENT_ID": "<your-client-id>",
         "CLIENT_SECRET": "<your-client-secret>"

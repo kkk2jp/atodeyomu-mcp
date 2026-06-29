@@ -56,7 +56,7 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
   "mcpServers": {
     "atodeyomu": {
       "command": "npx",
-      "args": ["-y", "atodeyomu-mcp"],
+      "args": ["-y", "atodeyomu-mcp@latest"],
       "env": {
         "CLIENT_ID": "控えたClientID",
         "CLIENT_SECRET": "控えたClientSecret"
@@ -67,6 +67,10 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
 ```
 
 保存後、Claude（Cowork）アプリを再起動すると `atodeyomu` が接続されます。
+
+> `@latest` を付けると、アプリ再起動のたびに最新版を取得します（npx はキャッシュするため、付けないと古い版を使い続けます）。バージョンを固定したい場合は `atodeyomu-mcp@1.0.0` のように指定してください。
+>
+> いま動いている版は `npx -y atodeyomu-mcp --version`、npm 上の最新版は `npm view atodeyomu-mcp version` で確認できます。
 
 > この MCP 設定ファイルには秘密情報（Client ID / Secret）が平文で入ります。共有・コミットしないでください。
 >
