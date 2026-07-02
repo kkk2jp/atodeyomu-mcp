@@ -119,12 +119,14 @@ export async function fetchUserTweets(
   userId: string,
   maxResults: number,
   sinceId: string | null,
+  paginationToken?: string,
 ): Promise<TweetV2PaginableTimelineResult> {
   const client = await getClient();
   const paginator = await client.v2.userTimeline(userId, {
     max_results: maxResults,
     ...(sinceId ? { since_id: sinceId } : {}),
-    "tweet.fields": ["created_at", "text", "referenced_tweets"],
+    ...(paginationToken ? { pagination_token: paginationToken } : {}),
+    "tweet.fields": ["created_at", "text", "referenced_tweets", "note_tweet"],
     expansions: [
       "referenced_tweets.id",
       "referenced_tweets.id.attachments.media_keys",

@@ -45,6 +45,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | `max_results` | number | 任意 | 20 | 1〜100 |
 | `since_id` | string | 任意 | カーソル値 | 取りこぼし時に手動で取得開始位置を巻き戻すための上書き |
+| `pagination_token` | string | 任意 | なし | 前回のレスポンスの `next_token`。差分が `max_results` を超えるときに続きのページを取るために渡す |
 
 **出力**（イメージ）
 
@@ -68,11 +69,12 @@ flowchart LR
       }
     }
   ],
-  "newest_seen_id": "1899..."
+  "newest_seen_id": "1899...",
+  "next_token": null
 }
 ```
 
-`url` は API から返ってこないので、`username` と `id` を組み立てて生成します。引用元のメディアが無ければ `media` は空配列です。`newest_seen_id` は取得したタイムライン全体（引用以外も含む）の最大 id で、全件を無事 Notion に保存できたら、この値を `commit_cursor` に渡します。
+`url` は API から返ってこないので、`username` と `id` を組み立てて生成します。引用元のメディアが無ければ `media` は空配列です。`text` / `quoted_post.text` は、通常の文字数上限を超える「長いポスト」の場合、切り詰められた `text` ではなく全文が入る `note_tweet.text` を優先して使います。`newest_seen_id` は取得したタイムライン全体（引用以外も含む）の最大 id で、全件を無事 Notion に保存できたら、この値を `commit_cursor` に渡します。`next_token` は続きのページがあるときだけ値が入り、無ければ `null` です（詳細は §6.2）。
 
 ### 3.2 `commit_cursor`
 
@@ -154,11 +156,18 @@ flowchart TD
     R -->|全部失敗| C3["commit しない<br/>→ カーソル据え置き / 次回再取得"]
 ```
 
-### 6.2 ページングは当面なし
+### 6.2 ページングによる複数ページ取得
 
-差分が `max_results`（最大 100）を超えて溜まった場合、1 回では取りきれません。X API には `pagination_token` でページ送りする仕組みがありますが、当面は実装しません。`commit_cursor` で確定した位置から次回続きを拾えるため、定期実行していれば追いつきます。
+差分が `max_results`（最大 100）を超えて溜まった場合、1 回の呼び出しでは取りきれません。X API の `pagination_token` でページ送りする仕組みに対応しており、レスポンスの `next_token` を次回呼び出しの `pagination_token` に渡すことで、同じ `since_id` 境界内の続きのページを取得できます。
 
-これは初回実行時（`since_id` 未指定かつ `cursor.json` が無い）や、`cursor.json` を削除してリセットした直後も同じです。`since_id` を付けずに呼ぶだけなので、X API はタイムラインの直近 `max_results` 件を返すにとどまり、それより古い引用ポストはこの 1 回では取得されません。古い投稿まで遡りたいときは `max_results` を増やすか、`since_id` を手動で調整しながら複数回に分けて呼ぶ必要があります。
+呼び出し側の想定フローはこうです。
+
+1. 1 回目は `pagination_token` なしで呼ぶ。
+2. レスポンスに `next_token` があれば、それを `pagination_token` に渡して呼び直す。`next_token` が返らなくなるまで繰り返す。
+3. 各回の `posts` は全て合算する。
+4. `commit_cursor` に渡す id は **1 回目（`pagination_token` 未指定）の呼び出しで返ってきた `newest_seen_id`** を使う。2 回目以降のページは過去方向へのページ送りであり、より新しい id を含まないためです。
+
+これは初回実行時（`since_id` 未指定かつ `cursor.json` が無い）や、`cursor.json` を削除してリセットした直後も同じ流れで使えます。`pagination_token` を使わずに 1 回だけ呼ぶ運用でもよく、その場合は取得できなかった古い引用ポストは次回実行（`commit_cursor` で確定した位置からの差分取得）で拾われます。
 
 ### 6.3 補足: 再取得は X API コストを増やさない
 

@@ -5,6 +5,7 @@ import { fetchUserTweets, getOwnUser, toSafeError } from "../twitter-client.js";
 export interface GetQuotedPostsInput {
   max_results?: number;
   since_id?: string;
+  pagination_token?: string;
 }
 
 interface MediaOutput {
@@ -32,6 +33,7 @@ interface PostOutput {
 export interface GetQuotedPostsOutput {
   posts: PostOutput[];
   newest_seen_id: string | null;
+  next_token: string | null;
 }
 
 export async function getQuotedPosts(input: GetQuotedPostsInput): Promise<GetQuotedPostsOutput> {
@@ -40,11 +42,11 @@ export async function getQuotedPosts(input: GetQuotedPostsInput): Promise<GetQuo
 
   try {
     const { id: ownId, username: ownUsername } = await getOwnUser();
-    const result = await fetchUserTweets(ownId, maxResults, sinceId);
+    const result = await fetchUserTweets(ownId, maxResults, sinceId, input.pagination_token);
 
     const data = result.data ?? [];
     if (data.length === 0) {
-      return { posts: [], newest_seen_id: null };
+      return { posts: [], newest_seen_id: null, next_token: result.meta?.next_token ?? null };
     }
 
     const includedTweets = new Map((result.includes?.tweets ?? []).map((t) => [t.id, t]));
@@ -72,12 +74,12 @@ export async function getQuotedPosts(input: GetQuotedPostsInput): Promise<GetQuo
 
       posts.push({
         id: tweet.id,
-        text: tweet.text,
+        text: tweet.note_tweet?.text ?? tweet.text,
         created_at: tweet.created_at ?? "",
         url: `https://x.com/${ownUsername}/status/${tweet.id}`,
         quoted_post: {
           id: quotedTweet.id,
-          text: quotedTweet.text,
+          text: quotedTweet.note_tweet?.text ?? quotedTweet.text,
           created_at: quotedTweet.created_at ?? "",
           author_username: authorUsername,
           url: `https://x.com/${authorUsername}/status/${quotedTweet.id}`,
@@ -87,8 +89,9 @@ export async function getQuotedPosts(input: GetQuotedPostsInput): Promise<GetQuo
     }
 
     const newestSeenId = result.meta?.newest_id ?? null;
+    const nextToken = result.meta?.next_token ?? null;
 
-    return { posts, newest_seen_id: newestSeenId };
+    return { posts, newest_seen_id: newestSeenId, next_token: nextToken };
   } catch (error) {
     throw toSafeError(error);
   }
