@@ -2,7 +2,7 @@
 
 X (Twitter) で「あとで読む」目的の **引用リツイート（引用ポスト）** を検出する、読み取り専用の MCP サーバーです。引用ポストとその引用元（本文・メディア・著者）をまとめて取得し、Claude（Cowork）→ Notion の知識管理パイプラインから利用することを想定しています。
 
-提供するツールは `get_quoted_posts`（前回以降の引用ポストを取得）と `commit_cursor`（取得位置を確定）の 2 つです。X への投稿・いいね・RT などの書き込みは一切行いません。前回どこまで取得したかはローカル（`~/.atodeyomu-mcp/cursor.json`）に記録し、`since_id` で差分だけを取得するため、Notion 照合のコストを抑えられます。
+提供するツールは `get_quoted_posts`（前回以降の引用ポストを取得）・`commit_cursor`（取得位置を確定）・`fetch_article`（引用元が貼った記事 URL を解決して本文を抽出）の 3 つです。X への投稿・いいね・RT などの書き込みは一切行いません（`fetch_article` も記事の読み取りのみ）。前回どこまで取得したかはローカル（`~/.atodeyomu-mcp/cursor.json`）に記録し、`since_id` で差分だけを取得するため、Notion 照合のコストを抑えられます。
 
 > 動作確認の詳細手順は [docs/VERIFICATION.md](./docs/VERIFICATION.md)、Cowork スケジュールタスクで Notion に記録するまでの手順は [docs/COWORK_PIPELINE.md](./docs/COWORK_PIPELINE.md) を参照してください。設計の詳細は [docs/DESIGN.md](./docs/DESIGN.md)、フロー図つきの仕様は [docs/SPEC.md](./docs/SPEC.md) にあります。
 
@@ -78,7 +78,7 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
 
 ## 使い方
 
-登録後、Claude（Cowork）から 2 つのツールを呼び出せます。基本の流れは「`get_quoted_posts` で差分を取得 → 要約して Notion に保存 → 成功したら `commit_cursor` で取得位置を確定」です。
+登録後、Claude（Cowork）から 3 つのツールを呼び出せます。基本の流れは「`get_quoted_posts` で差分を取得 →（引用元に記事 URL があれば `fetch_article` で本文を取得）→ 要約して Notion に保存 → 成功したら `commit_cursor` で取得位置を確定」です。
 
 ### `get_quoted_posts`
 
@@ -118,6 +118,38 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
 ```
 
 前回以降の直近 `max_results` 件のうち、引用ポストだけが `posts` に返ります。「あとで読む」というキーワードでの絞り込みや要約は、呼び出し側（Cowork のスキル/タスク）で行う設計です。`next_token` が値を持つ場合はまだ続きがあるということなので、その値を `pagination_token` に渡して呼び直すとページ送りできます。全ページ分の `posts` を合算し、`commit_cursor` には**1回目（`pagination_token` を指定しない呼び出し）の `newest_seen_id`** を渡します（2回目以降は過去方向へのページ送りのため、より新しい id を含みません）。
+
+### `fetch_article`
+
+引用元ポストが貼っている記事 URL を解決し、リンク先の本文テキストを抽出して返します。`quoted_post.text` に含まれる `t.co` 短縮 URL をそのまま渡せば、MCP がリダイレクトを追って最終記事 URL に解決し、本文を取り出します。返すのは抽出済み本文までで、**要約は呼び出し側で行います**。
+
+**入力**
+
+| パラメータ | 型 | 必須 | 説明 |
+| --- | --- | --- | --- |
+| `url` | string | 必須 | 記事の URL。`quoted_post.text` の `t.co` 短縮 URL や記事 URL をそのまま渡してよい |
+
+**出力（例）**
+
+```jsonc
+{
+  "final_url": "https://zenn.dev/someone/articles/xxxx",
+  "title": "記事タイトル",
+  "text": "抽出された記事本文 ...",
+  "status": "ok"
+}
+```
+
+`status` は結果の種別です。`ok` 以外のときは `text` が空文字になります。
+
+| status | 意味 |
+| --- | --- |
+| `ok` | 記事本文を抽出できた（`text` に本文が入る） |
+| `x_post` | リダイレクト先が X の別ポストだった（引用元がさらに別ポストを引用しているケース）。本文は取得しない |
+| `not_article` | 取得できたが記事本文として抽出できなかった（画像・動画のみ、非 HTML 等） |
+| `fetch_failed` | ネットワークエラー・非 HTTP・ペイウォール・タイムアウト等 |
+
+`ok` 以外は「記事が取れなかった」だけでエラーではありません。呼び出し側は引用コメントと引用元本文からの要約にフォールバックする想定です。記事の読み取り（GET）のみで、X や外部サイトへの書き込みは行いません。
 
 ### `commit_cursor`
 

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { getQuotedPosts } from "./tools/get-quoted-posts.js";
 import { commitCursor } from "./tools/commit-cursor.js";
+import { getArticle } from "./tools/fetch-article.js";
 import { loadTokens } from "./twitter-client.js";
 import { runAuth } from "./auth.js";
 
@@ -68,6 +69,32 @@ function buildServer(): McpServer {
     async ({ post_id }) => {
       try {
         const result = commitCursor({ post_id });
+        return {
+          content: [{ type: "text", text: JSON.stringify(result) }],
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "不明なエラーが発生しました。";
+        return {
+          content: [{ type: "text", text: message }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.registerTool(
+    "fetch_article",
+    {
+      title: "Fetch article",
+      description:
+        "引用元ポストに含まれる URL（t.co 短縮 URL 可）を解決し、リンク先の記事本文を抽出して返す。リダイレクトを追い、最終 URL が X の別ポストだった場合やペイウォール・非記事ページは本文を返さず status で通知する。X には書き込まない。",
+      inputSchema: {
+        url: z.string().describe("記事の URL。quoted_post.text に含まれる t.co や記事 URL をそのまま渡してよい"),
+      },
+    },
+    async ({ url }) => {
+      try {
+        const result = await getArticle({ url });
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
         };

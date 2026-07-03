@@ -29,6 +29,8 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.12",
     "twitter-api-v2": "^1.29.0",
     "zod": "^4.4.3"
   },
