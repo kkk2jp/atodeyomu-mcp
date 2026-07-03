@@ -88,9 +88,10 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
 
 | パラメータ | 型 | 必須 | デフォルト | 説明 |
 | --- | --- | --- | --- | --- |
-| `max_results` | number | 任意 | 20 | 1〜100 |
+| `limit` | number | 任意 | なし | 1〜50。指定すると **古い順（id 昇順）に最大 N 件だけ**返る（MCP が内部で全ページを取得して絞り込む）。`max_results` / `pagination_token` とは併用しない |
+| `max_results` | number | 任意 | 20 | 1〜100（`limit` を指定しない従来モードで有効） |
 | `since_id` | string | 任意 | カーソル値 | 取りこぼし時に取得開始位置を手動で巻き戻すための上書き |
-| `pagination_token` | string | 任意 | なし | 前回のレスポンスの `next_token`。差分が `max_results` を超える場合、これを渡して呼び直すと続きのページを取得できる |
+| `pagination_token` | string | 任意 | なし | 前回のレスポンスの `next_token`。差分が `max_results` を超える場合、これを渡して呼び直すと続きのページを取得できる（`limit` を指定しない従来モードで有効） |
 
 **出力（例）**
 
@@ -113,11 +114,16 @@ Claude（Cowork / デスクトップアプリ）の MCP 設定ファイルに登
     }
   ],
   "newest_seen_id": "1899...",
-  "next_token": null
+  "next_token": null,
+  "has_more": false
 }
 ```
 
-前回以降の直近 `max_results` 件のうち、引用ポストだけが `posts` に返ります。「あとで読む」というキーワードでの絞り込みや要約は、呼び出し側（Cowork のスキル/タスク）で行う設計です。`next_token` が値を持つ場合はまだ続きがあるということなので、その値を `pagination_token` に渡して呼び直すとページ送りできます。全ページ分の `posts` を合算し、`commit_cursor` には**1回目（`pagination_token` を指定しない呼び出し）の `newest_seen_id`** を渡します（2回目以降は過去方向へのページ送りのため、より新しい id を含みません）。
+前回以降の直近 `max_results` 件のうち、引用ポストだけが `posts` に返ります。「あとで読む」というキーワードでの絞り込みや要約は、呼び出し側（Cowork のスキル/タスク）で行う設計です。`has_more` は「返した分の先にまだ未処理の引用ポストが残っているか」を示します。
+
+`limit` を指定すると、MCP が内部で全ページを取得したうえで引用ポストを**古い順（id 昇順）に並べ、先頭 N 件だけ**を返します。差分が溜まっていても、呼び出し側は 1 回呼ぶだけで「処理すべき古い N 件」と `has_more` を受け取れます（差分全件をコンテキストに載せずに済む）。想定フローは、古い順に処理してから `commit_cursor` を呼ぶこと——全件処理でき `has_more` が `false` なら `newest_seen_id` で、`has_more` が `true` なら返ってきた `posts` の最後（最も新しい）の `id` で確定し、残りは次回に回します。
+
+`limit` を指定しない従来モードでは単一ページが返り、`next_token` が値を持つ場合はまだ続きがあるということなので、その値を `pagination_token` に渡して呼び直すとページ送りできます。全ページ分の `posts` を合算し、`commit_cursor` には**1回目（`pagination_token` を指定しない呼び出し）の `newest_seen_id`** を渡します（2回目以降は過去方向へのページ送りのため、より新しい id を含みません）。
 
 ### `fetch_article`
 

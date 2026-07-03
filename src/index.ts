@@ -30,19 +30,28 @@ function buildServer(): McpServer {
       description:
         "前回確定したカーソル以降の引用ポスト（あとで読む用の引用リツイート）と引用元コンテンツを取得する。カーソルは進めない。",
       inputSchema: {
-        max_results: z.number().int().min(1).max(100).optional().describe("取得件数（既定20、最大100）"),
+        max_results: z.number().int().min(1).max(100).optional().describe("取得件数（既定20、最大100）。従来モード（limit 未指定）でのみ使用"),
         since_id: z.string().optional().describe("この id 以降を取得する。指定時はカーソルより優先される"),
         pagination_token: z
           .string()
           .optional()
           .describe(
-            "前回のレスポンスの next_token。差分が max_results を超える場合、これを渡して呼び直すと続きのページを取得できる（同じ since_id 境界内でのページ送り）",
+            "前回のレスポンスの next_token。差分が max_results を超える場合、これを渡して呼び直すと続きのページを取得できる（同じ since_id 境界内でのページ送り）。従来モード用",
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe(
+            "指定すると、MCP 側で全ページを内部的に取得して古い順（id 昇順）に並べ、先頭 limit 件の引用ポストだけを返す。呼び出し側は差分全件をコンテキストに載せず、処理する古い N 件だけ受け取れる。返り値の has_more で残りがあるか分かる。max_results / pagination_token とは併用しない",
           ),
       },
     },
-    async ({ max_results, since_id, pagination_token }) => {
+    async ({ max_results, since_id, pagination_token, limit }) => {
       try {
-        const result = await getQuotedPosts({ max_results, since_id, pagination_token });
+        const result = await getQuotedPosts({ max_results, since_id, pagination_token, limit });
         return {
           content: [{ type: "text", text: JSON.stringify(result) }],
         };
