@@ -111,9 +111,11 @@ atodeyomu-mcp/
 
 URL のリダイレクト解決と記事本文抽出を担う。X API とは独立（トークン不要）。`fetchArticle(url)` を公開する（§6.7）。
 
-- リダイレクトを **手動追従**（`redirect: "manual"`）し、最大 5 回まで `Location` を辿る。手動にするのは、途中で X の個別ポスト（`/status/数字`）に着地した時点で本文取得を打ち切るため。
+- リダイレクトを **手動追従**（`redirect: "manual"`）し、最大 5 回まで `Location` を辿る。手動にするのは、途中で X の個別ポスト（`/status/数字`）や X ネイティブ記事（`/i/article/`）に着地した時点で本文取得を打ち切るため。
 - 各アクセス前に URL のプロトコルを検査し、`http:` / `https:` 以外（`javascript:`・`data:` など）は弾く。
-- 途中または最終 URL が X / Twitter の個別ポスト（`x.com` / `twitter.com` などの `/status/数字`）なら本文取得せず `status: "x_post"` で打ち切る（パターン2）。
+- ホスト判定（`x.com` / `twitter.com` / `mobile.` 付き）は共通ヘルパー `isXHost(hostname)` で行い、パス判定は `isXStatusUrl`（`/status/数字` → `x_post`）と `isXArticleUrl`（`^/i/article/` → `x_article`）の 2 つに分ける。
+- 途中または最終 URL が X / Twitter の個別ポスト（`/status/数字`）なら本文取得せず `status: "x_post"` で打ち切る（パターン2）。
+- 途中または最終 URL が X ネイティブ記事（`x.com/i/article/…`。Premium+ の長文記事機能）なら、fetch せず `status: "x_article"` で打ち切る（`x_post` と同じ扱い方）。X API v2 に記事本文を返すエンドポイントが無く、Web からも認証必須のため fetch してもほぼ空の JS シェルページしか返らない。`detail` に「X ネイティブ記事は認証必須のため本文を取得できない」を入れ、`title` / `text` は空文字。
 - それ以外は HTML を取得し、`linkedom` で DOM 化して `@mozilla/readability` で本文を抽出する。
 - fetch ガード: タイムアウト 10 秒（`AbortController`）、レスポンスサイズ上限 2MB（超過分は読み捨て）、`content-type` に `html` を含まないものは `not_article` 扱い、User-Agent は `atodeyomu-mcp article fetcher (+https://github.com/kkk2jp/atodeyomu-mcp)` を明示。読み取り（GET）のみで書き込みはしない。
 
@@ -252,7 +254,7 @@ pagination_token = <指定時のみ>
 処理:
 
 1. リダイレクトを **手動追従**（最大 5 回）して最終 URL に解決する。`http:` / `https:` 以外のプロトコルは弾く。
-2. 途中または最終 URL が X / Twitter の個別ポスト（`/status/数字` を含む URL）なら本文取得せず打ち切る（`status: "x_post"`）。
+2. 途中または最終 URL が X / Twitter の個別ポスト（`/status/数字` を含む URL）なら本文取得せず打ち切る（`status: "x_post"`）。X ネイティブ記事（`x.com/i/article/…`）も同様に fetch せず打ち切る（`status: "x_article"`）。
 3. それ以外は HTML を取得し、`@mozilla/readability` + `linkedom` で本文を抽出する。
 
 出力（JSON）:
@@ -262,7 +264,7 @@ pagination_token = <指定時のみ>
   "final_url": "string",   // リダイレクトを追って到達した最終 URL
   "title": "string",        // 記事タイトル（取れなければ空文字）
   "text": "string",         // 抽出済み本文（status が ok 以外は空文字）
-  "status": "ok | x_post | not_article | fetch_failed",
+  "status": "ok | x_post | x_article | not_article | fetch_failed",
   "detail": "string"        // 任意。失敗時の補足（HTTP ステータス等。トークン・内部情報は含めない）
 }
 ```
@@ -273,6 +275,7 @@ pagination_token = <指定時のみ>
 | --- | --- | --- |
 | `ok` | 記事本文を抽出できた | title あり（取れなければ空）、text あり |
 | `x_post` | リダイレクト先が X の別ポスト（パターン2）。本文は取得しない | ともに空文字 |
+| `x_article` | リダイレクト先が X ネイティブ記事（`x.com/i/article/…`）。認証必須のため本文は取得できない（`detail` に理由） | ともに空文字 |
 | `not_article` | 取得できたが記事本文として抽出できなかった（画像・動画のみ、非 HTML、抽出結果が空等） | text は空文字 |
 | `fetch_failed` | ネットワークエラー・非 HTTP・ペイウォール（HTTP エラー）・タイムアウト・リダイレクト超過等 | ともに空文字 |
 
@@ -331,7 +334,7 @@ pagination_token = <指定時のみ>
 | 認証エラー（401 / refresh token 失効） | 「`atodeyomu-mcp auth` を再実行してください」と明示したメッセージを返す。 |
 | トークンファイル不在 | 同上（再認可を促す）。 |
 | その他の X API エラー | **生のエラーレスポンスをそのまま転送しない**。内部 URL・トークン・ヘッダーが漏れないよう、ステータスコードと必要最小限のメッセージだけ抽出して返す。 |
-| `fetch_article` の記事取得失敗 | エラーとして throw せず、`status` で通知する（正常系）。ネットワークエラー・非 HTTP・ペイウォール（HTTP エラー）・タイムアウト・リダイレクト超過は `fetch_failed`、非 HTML・抽出結果が空は `not_article`、X の別ポストは `x_post`。`detail` には HTTP ステータス等の最小限の補足のみを入れ、内部情報は含めない。呼び出し側は `ok` 以外を要約なしのフォールバックとして扱う（保存エラーにはしない）。 |
+| `fetch_article` の記事取得失敗 | エラーとして throw せず、`status` で通知する（正常系）。ネットワークエラー・非 HTTP・ペイウォール（HTTP エラー）・タイムアウト・リダイレクト超過は `fetch_failed`、非 HTML・抽出結果が空は `not_article`、X の別ポストは `x_post`、X ネイティブ記事（認証必須で本文取得不可）は `x_article`。`detail` には HTTP ステータス等の最小限の補足のみを入れ、内部情報は含めない。呼び出し側は `ok` 以外を要約なしのフォールバックとして扱う（保存エラーにはしない）。 |
 
 ## 11. セキュリティ / 非機能要件
 

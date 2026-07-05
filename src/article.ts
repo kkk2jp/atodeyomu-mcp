@@ -5,6 +5,7 @@ import { parseHTML } from "linkedom";
 export type FetchArticleStatus =
   | "ok" // 記事本文を抽出できた
   | "x_post" // リダイレクト先が X の別ポスト（パターン2）。本文は取得しない
+  | "x_article" // リダイレクト先が X ネイティブの記事（x.com/i/article/…）。本文は認証必須のため取得できない
   | "not_article" // 取得できたが記事本文として抽出できなかった（画像・動画のみ等）
   | "fetch_failed"; // ネットワークエラー・非HTTP・ペイウォール・タイムアウト等
 
@@ -21,13 +22,26 @@ const FETCH_TIMEOUT_MS = 10_000;
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB
 const USER_AGENT = "atodeyomu-mcp article fetcher (+https://github.com/kkk2jp/atodeyomu-mcp)";
 
+function isXHost(hostname: string): boolean {
+  const host = hostname.replace(/^www\./, "");
+  return host === "x.com" || host === "twitter.com" || host === "mobile.x.com" || host === "mobile.twitter.com";
+}
+
 /** 最終 URL が X / Twitter の個別ポスト（/status/）かどうか。パターン2の検出に使う。 */
 function isXStatusUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    const host = u.hostname.replace(/^www\./, "");
-    const isXHost = host === "x.com" || host === "twitter.com" || host === "mobile.x.com" || host === "mobile.twitter.com";
-    return isXHost && /\/status\/\d+/.test(u.pathname);
+    return isXHost(u.hostname) && /\/status\/\d+/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** 最終 URL が X ネイティブの記事（x.com/i/article/…）かどうか。本文は認証必須のため Web からは取得できない。 */
+function isXArticleUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return isXHost(u.hostname) && /^\/i\/article\//.test(u.pathname);
   } catch {
     return false;
   }
@@ -39,7 +53,7 @@ function isXStatusUrl(url: string): boolean {
  */
 async function fetchFollowingRedirects(
   startUrl: string,
-): Promise<{ finalUrl: string; response: Response } | { xPostUrl: string } | { failed: string }> {
+): Promise<{ finalUrl: string; response: Response } | { xPostUrl: string } | { xArticleUrl: string } | { failed: string }> {
   let currentUrl = startUrl;
 
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
@@ -57,6 +71,10 @@ async function fetchFollowingRedirects(
     // 追従の途中でも X の個別ポストに着いたら打ち切り（パターン2）
     if (isXStatusUrl(currentUrl)) {
       return { xPostUrl: currentUrl };
+    }
+    // X ネイティブ記事も本文取得しない（認証必須。fetch してもシェルページしか返らない）
+    if (isXArticleUrl(currentUrl)) {
+      return { xArticleUrl: currentUrl };
     }
 
     const controller = new AbortController();
@@ -90,9 +108,12 @@ async function fetchFollowingRedirects(
       return { failed: `HTTP ${res.status}` };
     }
 
-    // 到達点が X の個別ポストなら本文取得しない
+    // 到達点が X の個別ポスト / X ネイティブ記事なら本文取得しない
     if (isXStatusUrl(res.url || currentUrl)) {
       return { xPostUrl: res.url || currentUrl };
+    }
+    if (isXArticleUrl(res.url || currentUrl)) {
+      return { xArticleUrl: res.url || currentUrl };
     }
 
     return { finalUrl: res.url || currentUrl, response: res };
@@ -133,6 +154,9 @@ export async function fetchArticle(inputUrl: string): Promise<FetchArticleResult
 
   if ("xPostUrl" in followed) {
     return { final_url: followed.xPostUrl, title: "", text: "", status: "x_post" };
+  }
+  if ("xArticleUrl" in followed) {
+    return { final_url: followed.xArticleUrl, title: "", text: "", status: "x_article", detail: "X ネイティブ記事は認証必須のため本文を取得できない" };
   }
   if ("failed" in followed) {
     return { final_url: inputUrl, title: "", text: "", status: "fetch_failed", detail: followed.failed };

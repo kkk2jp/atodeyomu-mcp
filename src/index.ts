@@ -96,7 +96,7 @@ function buildServer(): McpServer {
     {
       title: "Fetch article",
       description:
-        "引用元ポストに含まれる URL（t.co 短縮 URL 可）を解決し、リンク先の記事本文を抽出して返す。リダイレクトを追い、最終 URL が X の別ポストだった場合やペイウォール・非記事ページは本文を返さず status で通知する。X には書き込まない。",
+        "引用元ポストに含まれる URL（t.co 短縮 URL 可）を解決し、リンク先の記事本文を抽出して返す。リダイレクトを追い、最終 URL が X の別ポスト（status: x_post）や X ネイティブ記事（status: x_article、認証必須で本文取得不可）だった場合、ペイウォール・非記事ページの場合は本文を返さず status で通知する。X には書き込まない。",
       inputSchema: {
         url: z.string().describe("記事の URL。quoted_post.text に含まれる t.co や記事 URL をそのまま渡してよい"),
       },
